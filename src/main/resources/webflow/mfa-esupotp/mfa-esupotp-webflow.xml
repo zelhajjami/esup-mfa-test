@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<flow xmlns="http://www.springframework.org/schema/webflow"
+      xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xsi:schemaLocation="http://www.springframework.org/schema/webflow
+                          http://www.springframework.org/schema/webflow/spring-webflow.xsd">
+
+    <var name="credential" class="org.apereo.cas.adaptors.esupotp.EsupOtpCredential" />
+    <var name="transportCredential" class="org.apereo.cas.adaptors.esupotp.EsupOtpTransportCredential" />
+    <on-start>
+        <evaluate expression="initialFlowSetupAction" />
+    </on-start>
+
+    <action-state id="initializeLoginForm">
+        <evaluate expression="initializeLoginAction" />
+        <transition on="success" to="getTransportsForm"/>
+    </action-state>
+
+    <action-state id="getTransportsForm">
+        <evaluate expression="esupotpGetTransportsAction" />
+        <transition on="authWithoutCode" to="noCodeWaitingView"/>
+        <transition on="authWithCode" to="submitCodeFormView"/>
+        
+        <transition on="bypass" to="bypassLoginForm"/>
+    </action-state>
+    
+    <view-state id="noCodeWaitingView" view="casEsupOtpNoCodeView">
+        <transition on="submit" to="submitTransportEsupOtp"/>
+    </view-state>
+    
+    <view-state id="submitCodeFormView" view="casEsupOtpCodeView" model="credential">
+        <binder>
+            <binding property="token" required="true"/>
+        </binder>
+        <on-entry>
+            <set name="viewScope.principal" value="conversationScope.authentication.principal" />
+        </on-entry>
+        <transition on="submit" bind="true" validate="false"  to="realSubmitEsupOtp"/>
+        <transition on="callTransportView" to="sendRequestCodeView"/>
+    </view-state>
+    
+    <view-state id="sendRequestCodeView" view="fragments/requestCodeFormView" model="transportCredential">
+        <transition on="submitCallTransport" to="submitTransportEsupOtp"/>
+    </view-state>
+
+    <action-state id="submitTransportEsupOtp">
+        <evaluate expression="esupotpTransportService.sendCode(transportCredential)" />
+        <transition on="success" to="successView" />
+        <transition on="error" to="errorView" />
+    </action-state>
+
+    <view-state id="successView" view="fragments/successView"></view-state>
+    <view-state id="errorView" view="fragments/errorView"></view-state>
+        
+    <action-state id="bypassLoginForm">
+    	<evaluate expression="credential.activeBypass()" />
+        <transition on="success" to="realSubmitEsupOtp" />
+        <transition on="error" to="initializeLoginForm" />
+    </action-state>
+    
+    <action-state id="realSubmitEsupOtp">
+        <evaluate expression="esupotpAuthenticationWebflowAction" />
+        <transition on="success" to="success" />
+        <transition on="error" to="initializeLoginForm" />
+    </action-state>
+
+    <end-state id="success" />
+
+</flow>
